@@ -1,0 +1,702 @@
+from __future__ import annotations
+from dataclasses import dataclass, asdict, field
+from typing import List, Optional
+import json
+
+
+
+
+# Data classes
+@dataclass
+class MeasurementRound:
+    roundNumber: int
+    flowTemp: Optional[float] = None
+    returnTemp: Optional[float] = None
+    deltaT: Optional[float] = None
+    lockshieldPositionAtMeasurement: Optional[float] = None
+    adjustmentMadeBeforeMeasurement: Optional[float] = None
+    note: str = ""
+
+
+@dataclass
+class Radiator:
+    name: str
+    orderIndex: Optional[int] = None
+    lockshieldPosition: float = 0.0    # 0 = fully open, larger = more closed (can nver go blow 0)
+    lastAdjustment: float = 0.0        # positive = closed more, negative = opened more
+    measurements: List[MeasurementRound] = field(default_factory=list)
+
+
+@dataclass
+class SystemState:
+    projectName: str
+    targetDelta: float = 11.0
+    radiators: List[Radiator] = field(default_factory=list)
+    radiatorOrderKnown: Optional[bool] = None
+    heatingAtTemperatureConfirmed: Optional[bool] = None
+
+
+
+# Utility functions
+def printLine():
+    print("\n" + "=" * 60 + "\n")
+
+
+def pause():
+    input("Press Enter to continue...")
+
+
+def getNonEmptyString(promptText: str) -> str:
+    while True:
+        value = input(promptText).strip()
+        if value:
+            return value
+        print("Please enter a value")
+
+
+def getYesNo(promptText: str) -> bool:
+    while True:
+        value = input(f"{promptText} (y/n): ").strip().lower()
+        if value in ["y", "yes"]:
+            return True
+        if value in ["n", "no"]:
+            return False
+        print("Enter y or n")
+
+
+def getPositiveInt(promptText: str) -> int:
+    while True:
+        value = input(promptText).strip()
+        try:
+            number = int(value)
+            if number > 0:
+                return number
+            print("Enter a number greater than 0")
+        except:
+            print("Enter a valid whole number")
+
+
+def getFloat(promptText: str, minValue: Optional[float] = None) -> float:
+
+    while True:
+        value = input(promptText).strip()
+
+        try:
+            number = float(value)
+            if minValue is not None and number < minValue:
+                print(f"Enter a value greater than or equal to {minValue}.")
+                continue
+            return number
+        
+        except:
+            print("Enter a valid number")
+
+
+def round1(value: float) -> float:
+    return round(value, 1)
+
+def round3(value: float) -> float:
+    return round(value, 3)
+
+
+def calculateDeltaT(flowTemp: float, returnTemp: float) -> float:
+    return round1(flowTemp - returnTemp)
+
+
+
+def getDeltaStatus(deltaT: float, targetDelta: float) -> str:
+    lowerBound = targetDelta - 1.0
+    upperBound = targetDelta + 1.0
+
+    if lowerBound <= deltaT <= upperBound:
+        return "Within target range"
+    
+    elif deltaT < lowerBound:
+        return "Too low. The radiator has too much flow, needs more locksheild restriction"
+    else:
+        return "Too high. The radiator has too little flow, needs less locksheild restriction"
+
+
+def isBalanced(deltaT: float, targetDelta: float) -> bool:
+    return (targetDelta - 1.0) <= deltaT <= (targetDelta + 1.0)
+
+
+def getSortedRadiators(state: SystemState) -> List[Radiator]:
+    return sorted(state.radiators,key=lambda radiator: radiator.orderIndex if radiator.orderIndex is not None else 9999)
+
+
+def getNextRoundNumber(state: SystemState) -> int:
+    highestRound = 0
+
+    for radiator in state.radiators:
+        for measurement in radiator.measurements:
+
+            if measurement.roundNumber > highestRound:
+                highestRound = measurement.roundNumber
+
+    return highestRound + 1
+
+
+# Save and load projects
+def saveProject(state: SystemState, fileName: str = "radiatorBalancingData.json"):
+    with open(fileName, "w", encoding="utf-8") as file:
+        json.dump(asdict(state), file, indent=4)
+
+    print(f"Project saved to {fileName}")
+
+
+def loadProject(fileName: str = "radiatorBalancingData.json") -> Optional[SystemState]:
+    try:
+        with open(fileName, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        radiators = []
+
+        for radiatorData in data.get("radiators", []):
+            measurements = []
+
+            for measurementData in radiatorData.get("measurements", []):
+                measurements.append(
+                    MeasurementRound(
+                        roundNumber=measurementData.get("roundNumber"),
+                        flowTemp=measurementData.get("flowTemp"),
+                        returnTemp=measurementData.get("returnTemp"),
+                        deltaT=measurementData.get("deltaT"),
+                        lockshieldPositionAtMeasurement=measurementData.get("lockshieldPositionAtMeasurement"),
+                        adjustmentMadeBeforeMeasurement=measurementData.get("adjustmentMadeBeforeMeasurement", 0.0),
+                        note=measurementData.get("note", "")))
+
+
+            radiator = Radiator(
+                name=radiatorData.get("name", "Unnamed"),
+                orderIndex=radiatorData.get("orderIndex"),
+                lockshieldPosition=radiatorData.get("lockshieldPosition", 0.0),
+                lastAdjustment=radiatorData.get("lastAdjustment", 0.0),
+                measurements=measurements)
+            
+            radiators.append(radiator)
+
+        state = SystemState(
+            projectName=data.get("projectName", "Loaded Project"),
+            targetDelta=data.get("targetDelta", 11.0),
+            radiators=radiators,
+            radiatorOrderKnown=data.get("radiatorOrderKnown"),
+            heatingAtTemperatureConfirmed=data.get("heatingAtTemperatureConfirmed"))
+
+        return state
+
+
+    except FileNotFoundError:
+        print("Project could not be found")
+        return None
+    
+    except:
+        print(f"Error loading project: ")
+        return None
+
+
+# Tips and instructions shown to the user
+def showBleedTip():
+    printLine()
+    print("Tip:")
+    print("If sytem needs bleeding do that now before continuing")
+    printLine()
+
+
+def showColdSystemTip():
+    printLine()
+    print("Tip:")
+    print("Finding radiator order needs the heating to be off for around 20 minutes so the sytem is cold")
+    print("You may want to turn the system off now while entering radiator details so you do not have to wait later")
+    printLine()
+
+
+def showValveSetupTip():
+    printLine()
+    print("Valve setup:")
+    print("Turn all TRVs to maximum")
+    print("Set all lockshields to fully open/n")
+    print("Tip: do TRVs and lockshields at the same time to avoid going to each each radiator twice")
+    printLine()
+
+
+def showOrderDiscoveryTips():
+    printLine()
+    print("How to find the correct order:")
+    print("Make sure the system has been off and cold for 20 minutes")
+    print("Turn all radiators on from the fully cold system")
+    print("Feel which radiators heat up first, usually starting near the boiler")
+    printLine()
+
+
+def showHeatingRunTips():
+    printLine()
+    print("Run the heating to temperature and make sure:")
+    print("All TRVs fully open")
+    print("All lockshields are in the correct possition")
+    print("The thermostat set high so the boiler runs continuously")
+    print("Let the system run for around 20 ro heat up fully")
+    printLine()
+
+
+# Creating a new system
+def createNewSystem() -> SystemState:
+    printLine()
+    print("Add a new heating system")
+
+    showBleedTip()
+
+    projectName = getNonEmptyString("Enter the name of the system or building: ")
+    targetDelta = getFloat("Enter target delta T in degrees C (recommended 11 if unsure): ", minValue=0)
+
+    state = SystemState(projectName=projectName, targetDelta=targetDelta)
+    print(f"\nProject '{projectName}' created\n")
+
+    showColdSystemTip()
+
+    print("Would you like to:")
+    print("1. Continue and input the radiators")
+    print("2. Return to the main menu")
+
+    choice = getPositiveInt("Choose an option: ")
+
+    if choice == 1:
+        addRadiators(state)
+
+    return state
+
+
+
+def addRadiators(state: SystemState):
+    printLine()
+    print("Radiator Setup")
+
+    radiatorCount = getPositiveInt("How many radiators are in the system? ")
+
+    state.radiators = []
+
+    for i in range(radiatorCount):
+        radiatorName = getNonEmptyString(f"Enter name for radiator {i + 1}: ")
+        radiator = Radiator(
+            name=radiatorName,
+            lockshieldPosition=0.0,
+            lastAdjustment=0.0)
+        
+        state.radiators.append(radiator)
+
+    print("\nRadiators added successfully.\n")
+
+    showValveSetupTip()
+
+    print("Would you like to:")
+    print("1. Continue and set the radiator order")
+    print("2. Return to the main menu")
+
+    choice = getPositiveInt("Choose an option: ")
+
+    if choice == 1:
+        setRadiatorOrder(state)
+
+
+
+def setRadiatorOrder(state: SystemState):
+    printLine()
+    print("Radiator Order")
+    print("Radiators need to be ordered from closest to the boiler to furthest")
+
+    state.radiatorOrderKnown = getYesNo("Do you already know the radiator order relative to the boiler")
+
+    if not state.radiatorOrderKnown:
+        showOrderDiscoveryTips()
+        input("When you are ready, press Enter to input the order...")
+
+
+    print()
+    print("Available radiators:")
+    for index, radiator in enumerate(state.radiators, start=1):
+        print(f" {index}. {radiator.name}")
+
+
+
+    print()
+    print("Enter each radiator name in order from closest to the boiler to furthest")
+
+    remainingNames = [radiator.name for radiator in state.radiators]
+    orderedNames = []
+
+    for position in range(1, len(state.radiators) + 1):
+
+        while True:
+            chosenName = getNonEmptyString(f"Radiator at position {position}: ")
+            matchedName = None
+
+            for name in remainingNames:
+                if name.lower() == chosenName.lower():
+                    matchedName = name
+                    break
+
+            if matchedName is None:
+                print("Radiator not found. Try again.")
+
+            else:
+                orderedNames.append(matchedName)
+                remainingNames.remove(matchedName)
+                break
+
+
+    for orderIndex, radiatorName in enumerate(orderedNames, start=1):
+        for radiator in state.radiators:
+            if radiator.name == radiatorName:
+                radiator.orderIndex = orderIndex
+                break
+
+    print("\nRadiators ordered successfully\n")
+
+    print()
+    print("Would you like to:")
+    print("1. Continue and enter the first round of measurements")
+    print("2. Return to the main menu")
+
+    choice = getPositiveInt("Choose an option: ")
+
+    if choice == 1:
+        roundNumber = getNextRoundNumber(state)
+        enterMeasurementRound(state, roundNumber)
+
+
+# Taking measurements
+def enterMeasurementRound(state: SystemState, roundNumber: int):
+    printLine()
+    print(f"Measurements Round {roundNumber}")
+    print(f"Target delta T: {state.targetDelta} degrees C")
+    showHeatingRunTips()
+    print("Measure both sides of each radiator with your thermometer")
+    print("The program will work out which side is flow and which is return")
+
+    sortedRadiators = getSortedRadiators(state)
+
+
+    for radiator in sortedRadiators:
+        printLine()
+        print(f"Radiator: {radiator.name}")
+
+        if radiator.orderIndex is not None:
+            print(f"Order from boiler: {radiator.orderIndex}")
+
+
+        temp1 = getFloat("Temperature of one side in degrees C: ")
+        temp2 = getFloat("Temperature of the other side in degrees C: ")
+
+        if temp1 >= temp2:
+            flowTemp = temp1
+            returnTemp = temp2
+
+        else:
+            flowTemp = temp2
+            returnTemp = temp1
+
+        deltaT = calculateDeltaT(flowTemp, returnTemp)
+
+        print(f"Flow: {round1(flowTemp)} C   Return: {round1(returnTemp)} C   Delta T: {deltaT} C")
+        print(f"Status: {getDeltaStatus(deltaT, state.targetDelta)}")
+
+        measurement = MeasurementRound(
+            roundNumber=roundNumber,
+            flowTemp=round1(flowTemp),
+            returnTemp=round1(returnTemp),
+            deltaT=deltaT,
+            lockshieldPositionAtMeasurement=round3(radiator.lockshieldPosition),
+            adjustmentMadeBeforeMeasurement=round3(radiator.lastAdjustment))
+        
+        radiator.measurements.append(measurement)
+
+
+    adjustments = optimisationMatrix(state.radiators, state.targetDelta)
+
+    for radiator, adjustment in zip(sortedRadiators, adjustments):
+        radiator.lockshieldPosition = roundToQuarterTurn(radiator.lockshieldPosition + adjustment)
+        radiator.lastAdjustment = adjustment
+
+    print()
+    printLine()
+    print()
+    print("Suggested adjustments:")
+    for radiator, adjustment in zip(sortedRadiators, adjustments):
+        print(f"{radiator.name}: {adjustment:+.2f} turns")
+
+
+def roundToQuarterTurn(value: float) -> float:
+    return round(value * 4) / 4
+
+
+def turnsPerDegree(deltaT: float, targetDeltaT: float) -> float:
+    deltaError = deltaT - targetDeltaT
+    turns = -((deltaError * abs(deltaError)) / 8)
+    return roundToQuarterTurn(turns)
+
+
+def buildCarryOverList(
+    sourceIndex: int,
+    appliedAdjustment: float,
+    radiatorCount: int,
+    learningRate: float
+) -> List[float]:
+    """
+    Creates the effect list for radiators after the one just changed.
+
+    Opposite sign to the change:
+    - if this radiator is opened more (-), later radiators tend to need closing more (+)
+    - if this radiator is closed more (+), later radiators tend to need opening more (-)
+
+    Effect decreases non-linearly with distance and also scales down a for larger systems
+    """
+    carryOver = [0.0] * radiatorCount
+
+    if appliedAdjustment == 0:
+        return carryOver
+
+    systemScale = max(1.0, radiatorCount ** 0.5)
+    baseEffect = (-appliedAdjustment * learningRate) / systemScale
+
+    for i in range(sourceIndex + 1, radiatorCount):
+        distance = i - sourceIndex
+        effect = baseEffect / (distance ** 1.35)
+        carryOver[i] = roundToQuarterTurn(effect)
+
+    return carryOver
+
+
+def addCarryOverLists(currentList: List[float], newList: List[float]) -> List[float]:
+    combined = []
+
+    for currentValue, newValue in zip(currentList, newList):
+        combined.append(roundToQuarterTurn(currentValue + newValue))
+
+    return combined
+
+
+def limitAdjustmentToValveRange(currentPosition: float, requestedAdjustment: float) -> float:
+    newPosition = currentPosition + requestedAdjustment
+
+    if newPosition < 0:
+        return roundToQuarterTurn(-currentPosition)
+
+    return roundToQuarterTurn(requestedAdjustment)
+
+
+def optimisationMatrix(
+    radiators: List["Radiator"],
+    targetDeltaT: float,
+    learningRate: float = 0.5) -> List[float]:
+
+    sortedRadiators = sorted(
+        radiators,
+        key=lambda radiator: radiator.orderIndex if radiator.orderIndex is not None else 9999)
+
+    radiatorCount = len(sortedRadiators)
+
+    # running carry-over list for all radiators
+    previousChange = [0.0] * radiatorCount
+
+    # final adjustment to apply to each radiator
+    adjustmentsToApply = [0.0] * radiatorCount
+
+    for i, radiator in enumerate(sortedRadiators):
+
+        if not radiator.measurements:
+            adjustmentsToApply[i] = 0.0
+            previousChange[i] = 0.0
+            continue
+
+        latestMeasurement = radiator.measurements[-1]
+
+        if latestMeasurement.deltaT is None:
+            adjustmentsToApply[i] = 0.0
+            previousChange[i] = 0.0
+            continue
+
+        # 1) base adjustment from this radiator's own deltaT
+        if abs(latestMeasurement.deltaT - targetDeltaT) <= 1:
+            baseAdjustment = 0.0
+        else:
+            baseAdjustment = turnsPerDegree(latestMeasurement.deltaT, targetDeltaT)
+
+        # 2) include carry-over already affecting this radiator
+        totalRequestedAdjustment = roundToQuarterTurn(baseAdjustment + previousChange[i])
+
+        # 3) limit opening so valve cannot go beyond fully open (0)
+        currentPosition = radiator.lockshieldPosition
+        appliedAdjustment = limitAdjustmentToValveRange(currentPosition, totalRequestedAdjustment)
+
+        adjustmentsToApply[i] = appliedAdjustment
+
+        # this radiator's carry-over has now been used
+        previousChange[i] = 0.0
+
+        # 4) new carry-over for later radiators
+        newCarryOver = buildCarryOverList(
+            sourceIndex=i,
+            appliedAdjustment=appliedAdjustment,
+            radiatorCount=radiatorCount,
+            learningRate=learningRate)
+
+        previousChange = addCarryOverLists(previousChange, newCarryOver)
+
+    return adjustmentsToApply
+
+
+
+# Show results 
+def showLatestResults(state: SystemState):
+    printLine()
+    print("Latest Results")
+
+    if not state.radiators:
+        print("No radiators found")
+        return
+
+    sortedRadiators = getSortedRadiators(state)
+    latestRoundNumber = getNextRoundNumber(state) - 1
+
+    if latestRoundNumber < 1:
+        print("No measurement round recorded")
+        return
+
+    print(f"Latest round: {latestRoundNumber}")
+    print(f"Target delta T: {state.targetDelta} degrees C")
+    print()
+
+    for radiator in sortedRadiators:
+        print(f"Radiator: {radiator.name}")
+
+        if radiator.orderIndex is not None:
+            print(f"Order: {radiator.orderIndex}")
+
+        if not radiator.measurements:
+            print("No measurements recorded")
+            print()
+            continue
+
+        latestMeasurement = radiator.measurements[-1]
+
+        print(f"Flow temperature: {latestMeasurement.flowTemp} C")
+        print(f"Return temperature: {latestMeasurement.returnTemp} C")
+        print(f"Delta T: {latestMeasurement.deltaT} C")
+        print(f"Status: {getDeltaStatus(latestMeasurement.deltaT, state.targetDelta)}")
+        print(f"Lockshield position at measurement: {latestMeasurement.lockshieldPositionAtMeasurement}")
+        print(f"Adjustment made before measurement: {latestMeasurement.adjustmentMadeBeforeMeasurement}")
+        print(f"Current lockshield position: {round3(radiator.lockshieldPosition)}")
+        print(f"Latest suggested / applied adjustment: {round3(radiator.lastAdjustment)}")
+        print()
+
+
+
+
+def showFullProjectSummary(state: SystemState):
+    printLine()
+    print("Project Summary")
+    print(f"Project name: {state.projectName}")
+    print(f"Target delta T: {state.targetDelta} degrees C")
+    print(f"Number of radiators: {len(state.radiators)}")
+    print(f"Radiator order: {state.radiatorOrderKnown}")
+    print()
+
+    sortedRadiators = getSortedRadiators(state)
+
+    for radiator in sortedRadiators:
+        print(f"Radiator: {radiator.name}")
+        print(f"Order: {radiator.orderIndex}")
+        print(f"Lockshield position: {round3(radiator.lockshieldPosition)}")
+        print(f"Measurement rounds recorded: {len(radiator.measurements)}")
+
+        for measurement in radiator.measurements:
+            print(
+                f"Round {measurement.roundNumber}: "
+                f"Tf={measurement.flowTemp} C, "
+                f"Tr={measurement.returnTemp} C, "
+                f"DeltaT={measurement.deltaT} C, "
+                f"Lockshield={measurement.lockshieldPositionAtMeasurement}, "
+                f"PrevAdjustment={measurement.adjustmentMadeBeforeMeasurement}")
+        
+        print()
+
+
+# Menu
+def showMenu():
+    printLine()
+    print("Main Menu")
+    print("1. Add a new heating system")
+    print("2. Continue with a saved heating system")
+    print("3. Enter a measurement round")
+    print("4. Show latest results")
+    print("5. Show full project summary")
+    print("6. Save project")
+    print("0. Exit")
+    printLine()
+
+
+def main():
+    state = None
+
+    while True:
+        showMenu()
+        choice = input("Choose an option: ").strip()
+
+        if choice == "1":
+            state = createNewSystem()
+
+        elif choice == "2":
+            loadedState = loadProject()
+            if loadedState is not None:
+                state = loadedState
+                print("Project loaded successfully")
+
+                if not state.radiators:
+                    addRadiators(state)
+                elif any(radiator.orderIndex is None for radiator in state.radiators):
+                    setRadiatorOrder(state)
+
+        elif choice == "3":
+            if state is None:
+                print("Create or load a project first")
+            elif not state.radiators:
+                print("You need to add radiators first")
+            else:
+                roundNumber = getNextRoundNumber(state)
+                enterMeasurementRound(state, roundNumber)
+
+        elif choice == "4":
+            if state is None:
+                print("Create or load a project first")
+            else:
+                showLatestResults(state)
+
+
+        elif choice == "5":
+            if state is None:
+                print("Create or load a project first")
+            else:
+                showFullProjectSummary(state)
+
+        elif choice == "6":
+            if state is None:
+                print("Create or load a project first")
+            else:
+                saveProject(state)
+
+        elif choice == "0":
+            if state is not None:
+                if getYesNo("Would you like to save before exiting"):
+                    saveProject(state)
+            print("Bye :)")
+            break
+
+        else:
+            print("Invalid option. Try again")
+
+
+        pause()
+
+
+if __name__ == "__main__":
+    main()

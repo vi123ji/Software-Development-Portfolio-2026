@@ -1,0 +1,258 @@
+from __future__ import annotations
+from dataclasses import dataclass, asdict, field
+from typing import List, Optional
+import json
+
+
+
+
+# Data classes
+@dataclass
+class MeasurementRound:
+    roundNumber: int
+    flowTemp: Optional[float] = None
+    returnTemp: Optional[float] = None
+    deltaT: Optional[float] = None
+    lockshieldPositionAtMeasurement: Optional[float] = None
+    adjustmentMadeBeforeMeasurement: Optional[float] = None
+    note: str = ""
+
+
+@dataclass
+class Radiator:
+    name: str
+    orderIndex: Optional[int] = None
+    lockshieldPosition: float = 0.0    # 0 = fully open, larger = more closed (can nver go blow 0)
+    lastAdjustment: float = 0.0        # positive = closed more, negative = opened more
+    measurements: List[MeasurementRound] = field(default_factory=list)
+
+
+@dataclass
+class SystemState:
+    projectName: str
+    targetDelta: float = 11.0
+    radiators: List[Radiator] = field(default_factory=list)
+    radiatorOrderKnown: Optional[bool] = None
+    heatingAtTemperatureConfirmed: Optional[bool] = None
+
+
+
+# Utility functions
+def printLine():
+    print("\n" + "=" * 60 + "\n")
+
+
+def pause():
+    input("Press Enter to continue...")
+
+
+def getNonEmptyString(promptText: str) -> str:
+    while True:
+        value = input(promptText).strip()
+        if value:
+            return value
+        print("Please enter a value")
+
+
+def getYesNo(promptText: str) -> bool:
+    while True:
+        value = input(f"{promptText} (y/n): ").strip().lower()
+        if value in ["y", "yes"]:
+            return True
+        if value in ["n", "no"]:
+            return False
+        print("Enter y or n")
+
+
+def getPositiveInt(promptText: str) -> int:
+    while True:
+        value = input(promptText).strip()
+        try:
+            number = int(value)
+            if number > 0:
+                return number
+            print("Enter a number greater than 0")
+        except:
+            print("Enter a valid whole number")
+
+
+def getFloat(promptText: str, minValue: Optional[float] = None) -> float:
+
+    while True:
+        value = input(promptText).strip()
+
+        try:
+            number = float(value)
+            if minValue is not None and number < minValue:
+                print(f"Enter a value greater than or equal to {minValue}.")
+                continue
+            return number
+        
+        except:
+            print("Enter a valid number")
+
+
+# Save and load projects
+def saveProject(state: SystemState, fileName: str = "radiatorBalancingData.json"):
+    with open(fileName, "w", encoding="utf-8") as file:
+        json.dump(asdict(state), file, indent=4)
+
+    print(f"Project saved to {fileName}")
+
+
+def loadProject(fileName: str = "radiatorBalancingData.json") -> Optional[SystemState]:
+    try:
+        with open(fileName, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        radiators = []
+
+        for radiatorData in data.get("radiators", []):
+            measurements = []
+
+            for measurementData in radiatorData.get("measurements", []):
+                measurements.append(
+                    MeasurementRound(
+                        roundNumber=measurementData.get("roundNumber"),
+                        flowTemp=measurementData.get("flowTemp"),
+                        returnTemp=measurementData.get("returnTemp"),
+                        deltaT=measurementData.get("deltaT"),
+                        lockshieldPositionAtMeasurement=measurementData.get("lockshieldPositionAtMeasurement"),
+                        adjustmentMadeBeforeMeasurement=measurementData.get("adjustmentMadeBeforeMeasurement", 0.0),
+                        note=measurementData.get("note", "")))
+
+
+            radiator = Radiator(
+                name=radiatorData.get("name", "Unnamed"),
+                orderIndex=radiatorData.get("orderIndex"),
+                lockshieldPosition=radiatorData.get("lockshieldPosition", 0.0),
+                lastAdjustment=radiatorData.get("lastAdjustment", 0.0),
+                measurements=measurements)
+            
+            radiators.append(radiator)
+
+        state = SystemState(
+            projectName=data.get("projectName", "Loaded Project"),
+            targetDelta=data.get("targetDelta", 11.0),
+            radiators=radiators,
+            radiatorOrderKnown=data.get("radiatorOrderKnown"),
+            heatingAtTemperatureConfirmed=data.get("heatingAtTemperatureConfirmed"))
+
+        return state
+
+
+    except FileNotFoundError:
+        print("Project could not be found")
+        return None
+    
+    except:
+        print(f"Error loading project: ")
+        return None
+
+
+# Tips and instructions shown to the user
+def showBleedTip():
+    printLine()
+    print("Tip:")
+    print("If sytem needs bleeding do that now before continuing")
+    printLine()
+
+
+def showColdSystemTip():
+    printLine()
+    print("Tip:")
+    print("Finding radiator order needs the heating to be off for around 20 minutes so the sytem is cold")
+    print("You may want to turn the system off now while entering radiator details so you do not have to wait later")
+    printLine()
+
+
+def showValveSetupTip():
+    printLine()
+    print("Valve setup:")
+    print("Turn all TRVs to maximum")
+    print("Set all lockshields to fully open/n")
+    print("Tip: do TRVs and lockshields at the same time to avoid going to each each radiator twice")
+    printLine()
+
+
+def showOrderDiscoveryTips():
+    printLine()
+    print("How to find the correct order:")
+    print("Make sure the system has been off and cold for 20 minutes")
+    print("Turn all radiators on from the fully cold system")
+    print("Feel which radiators heat up first, usually starting near the boiler")
+    printLine()
+
+
+def showHeatingRunTips():
+    printLine()
+    print("Run the heating to temperature and make sure:")
+    print("All TRVs fully open")
+    print("All lockshields are in the correct possition")
+    print("The thermostat set high so the boiler runs continuously")
+    print("Let the system run for around 20 ro heat up fully")
+    printLine()
+
+
+# Creating a new system
+def createNewSystem() -> SystemState:
+    printLine()
+    print("Add a new heating system")
+
+    showBleedTip()
+
+    projectName = getNonEmptyString("Enter the name of the system or building: ")
+    targetDelta = getFloat("Enter target delta T in degrees C (recommended 11 if unsure): ", minValue=0)
+
+    state = SystemState(projectName=projectName, targetDelta=targetDelta)
+    print(f"\nProject '{projectName}' created\n")
+
+    showColdSystemTip()
+
+
+# Menu
+def showMenu():
+    printLine()
+    print("Main Menu")
+    print("1. Add a new heating system")
+    print("2. Continue with a saved heating system")
+    print("3. Save project")
+    print("0. Exit")
+    printLine()
+
+
+def main():
+    state = None
+
+    while True:
+        showMenu()
+        choice = input("Choose an option: ").strip()
+
+        if choice == "1":
+            state = createNewSystem()
+
+        elif choice == "2":
+            loadedState = loadProject()
+            if loadedState is not None:
+                state = loadedState
+                print("Project loaded successfully")
+
+        elif choice == "3":
+            if state is None:
+                print("Create or load a project first")
+            else:
+                saveProject(state)
+
+        elif choice == "0":
+            print("Bye :)")
+            break
+
+        else:
+            print("Invalid option. Try again")
+
+
+        pause()
+
+
+if __name__ == "__main__":
+    main()
