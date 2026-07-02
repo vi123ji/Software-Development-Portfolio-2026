@@ -1,0 +1,144 @@
+{
+    "projectName": "Jila Home",
+    "targetDelta": 11.0,
+    "radiators": [
+        {
+            "name": "Bedroom1",
+            "orderIndex": 1,
+            "lockshieldPosition": 16.75,
+            "lastAdjustment": 16.75,
+            "measurements": [
+                {
+                    "roundNumber": 1,
+                    "flowTemp": 44.0,
+                    "returnTemp": 44.0,
+                    "deltaT": 0.0,
+                    "lockshieldPositionAtMeasurement": 0.0,
+                    "adjustmentMadeBeforeMeasurement": 0.0,
+                    "note": ""
+                }
+            ]
+        },
+        {
+            "name": "Bedroom2",
+            "orderIndex": 2,
+            "lockshieldPosition": 16.75,
+            "lastAdjustment": 16.75,
+            "measurements": [
+                {
+                    "roundNumber": 1,
+                    "flowTemp": 43.0,
+                    "returnTemp": 43.0,
+                    "deltaT": 0.0,
+                    "lockshieldPositionAtMeasurement": 0.0,
+                    "adjustmentMadeBeforeMeasurement": 0.0,
+                    "note": ""
+                }
+            ]
+        },
+        {
+            "name": "Bathroom1",
+            "orderIndex": 3,
+            "lockshieldPosition": 8.5,
+            "lastAdjustment": 8.5,
+            "measurements": [
+                {
+                    "roundNumber": 1,
+                    "flowTemp": 45.0,
+                    "returnTemp": 41.4,
+                    "deltaT": 3.6,
+                    "lockshieldPositionAtMeasurement": 0.0,
+                    "adjustmentMadeBeforeMeasurement": 0.0,
+                    "note": ""
+                }
+            ]
+        },
+        {
+            "name": "Kitchen",
+            "orderIndex": 4,
+            "lockshieldPosition": 11.25,
+            "lastAdjustment": 11.25,
+            "measurements": [
+                {
+                    "roundNumber": 1,
+                    "flowTemp": 38.5,
+                    "returnTemp": 36.2,
+                    "deltaT": 2.3,
+                    "lockshieldPositionAtMeasurement": 0.0,
+                    "adjustmentMadeBeforeMeasurement": 0.0,
+                    "note": ""
+                }
+            ]
+        },
+        {
+            "name": "Hallway1",
+            "orderIndex": 5,
+            "lockshieldPosition": 2.75,
+            "lastAdjustment": 2.75,
+            "measurements": [
+                {
+                    "roundNumber": 1,
+                    "flowTemp": 41.4,
+                    "returnTemp": 33.4,
+                    "deltaT": 8.0,
+                    "lockshieldPositionAtMeasurement": 0.0,
+                    "adjustmentMadeBeforeMeasurement": 0.0,
+                    "note": ""
+                }
+            ]
+        },
+        {
+            "name": "Bathroom2",
+            "orderIndex": 6,
+            "lockshieldPosition": 1.75,
+            "lastAdjustment": 1.75,
+            "measurements": [
+                {
+                    "roundNumber": 1,
+                    "flowTemp": 52.9,
+                    "returnTemp": 40.2,
+                    "deltaT": 12.7,
+                    "lockshieldPositionAtMeasurement": 0.0,
+                    "adjustmentMadeBeforeMeasurement": 0.0,
+                    "note": ""
+                }
+            ]
+        },
+        {
+            "name": "Bedroom3",
+            "orderIndex": 7,
+            "lockshieldPosition": 1.5,
+            "lastAdjustment": 1.5,
+            "measurements": [
+                {
+                    "roundNumber": 1,
+                    "flowTemp": 31.8,
+                    "returnTemp": 16.5,
+                    "deltaT": 15.3,
+                    "lockshieldPositionAtMeasurement": 0.0,
+                    "adjustmentMadeBeforeMeasurement": 0.0,
+                    "note": ""
+                }
+            ]
+        },
+        {
+            "name": "Bedroom4",
+            "orderIndex": 8,
+            "lockshieldPosition": 0.25,
+            "lastAdjustment": 0.25,
+            "measurements": [
+                {
+                    "roundNumber": 1,
+                    "flowTemp": 43.0,
+                    "returnTemp": 23.0,
+                    "deltaT": 20.0,
+                    "lockshieldPositionAtMeasurement": 0.0,
+                    "adjustmentMadeBeforeMeasurement": 0.0,
+                    "note": ""
+                }
+            ]
+        }
+    ],
+    "radiatorOrderKnown": true,
+    "heatingAtTemperatureConfirmed": null
+}
