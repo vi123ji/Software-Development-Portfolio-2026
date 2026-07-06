@@ -41,7 +41,7 @@ This project investigates the use of machine learning regression algorithms to p
 
 ## Project Objective
 
-The aim of this project was to develop and compare multiple machine learning regression models capable of predicting house prices from property features. The project evaluates the strengths and limitations of Linear Regression, Elastic Net Regression, and Decision Tree Regression to determine which model performs best for this dataset.
+This project aimed to develop and compare multiple machine learning regression models capable of predicting house prices from property features. The project evaluates the strengths and limitations of Linear Regression, Elastic Net Regression, and Decision Tree Regression to determine which model performs best for this dataset.
 
 ---
 
