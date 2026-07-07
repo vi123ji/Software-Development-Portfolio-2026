@@ -1,4 +1,4 @@
-# Lab 17 advanced task Server
+# This server runs continuously, waiting for requests from Client.py 
 import socket
 import random
 
