@@ -1,4 +1,4 @@
-# Lab 17 advanced task Client
+# This client sends a medicine order to the server. It first connects to the server, then sends an order with the necessary fields and  waits for the server's reply to confirm the order. 
 import socket
 
 client = socket.socket()
